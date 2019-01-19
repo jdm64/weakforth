@@ -1,11 +1,55 @@
 #!/usr/bin/env python3
 
+import sys
 from enum import Enum
 from collections import deque
 
-OpCode = Enum('OpCode', 'Call Jump Prompt PushNum Return')
+OpCode = Enum('OpCode', 'Call Jump Prompt PushNum Read Return')
 
 Mode = Enum('Mode', 'Compile Execute')
+
+class UserInput:
+	def __init__(self):
+		self.buff = deque()
+
+	def hasData(self):
+		return bool(self.buff)
+
+	def prependEmpty(self):
+		self.buff.insert(0, '')
+
+	def printError(self, msg):
+		print(msg)
+		self.buff.clear()
+		self.buff.append('')
+
+	def nextWord(self):
+		if not self.buff:
+			self.buff.extend(input().split())
+			self.buff.append('')
+		return self.buff.popleft()
+
+class TextInput:
+	def __init__(self, filename):
+		with open(filename, 'r') as f:
+			data = f.read().split()
+		self.buff = deque()
+		self.buff.extend(data)
+		self.buff.append('exit')
+
+	def hasData(self):
+		return bool(self.buff)
+
+	def prependEmpty(self):
+		self.buff.insert(0, '')
+
+	def printError(self, msg):
+		print(msg)
+		self.buff.clear()
+		self.buff.append('exit')
+
+	def nextWord(self):
+		return self.buff.popleft()
 
 class FunctionItem:
 	def __init__(self, name, run=None, code=None, immediate=False):
@@ -25,13 +69,14 @@ class BaseVM:
 		self.currFuncId = 0
 		self.pc = -1
 		self.mode = Mode.Execute
-		self.buff = deque()
+		self.txtInput = UserInput()
 
 		self.opTable = {
 			OpCode.Call    : self.call,
 			OpCode.Jump    : self.jump,
 			OpCode.Prompt  : self.prompt,
 			OpCode.PushNum : self.pushNum,
+			OpCode.Read    : self.read,
 			OpCode.Return  : self.returnFunc,
 		}
 
@@ -57,13 +102,8 @@ class BaseVM:
 		self.pc += 1
 		return self.currFunc.code[self.pc]
 
-	def printError(self, msg):
-		print(msg)
-		self.buff.clear()
-		self.buff.append('')
-
 	def invalidInst(self):
-		self.printError("Invalid instruction: " + self.currInst())
+		self.txtInput.printError("Invalid instruction: " + self.currInst())
 
 	def findFunc(self, name):
 		funcs = [[i, x] for i, x in enumerate(self.ftable) if x.name == name]
@@ -83,18 +123,12 @@ class BaseVM:
 		else:
 			func.run()
 
-	def nextWord(self):
-		if not self.buff:
-			self.buff.extend(input().split())
-			self.buff.append('')
-		return self.buff.popleft()
-
 	def execWord(self, word):
 		i, func = self.findFunc(word)
 		if not func:
 			num = self.toNumber(word)
 			if num == None:
-				self.printError("Error: `" + word + "` not a function or a number")
+				self.txtInput.printError("Error: `" + word + "` not a function or a number")
 				return
 
 			if self.mode == Mode.Compile:
@@ -108,7 +142,7 @@ class BaseVM:
 		elif self.mode == Mode.Execute:
 			self.callFunc(i, func)
 			if func.code:
-				self.buff.insert(0, '')
+				self.txtInput.prependEmpty()
 		else:
 			self.defFunc.code.extend([OpCode.Call, i])
 
@@ -125,16 +159,20 @@ class BaseVM:
 		self.pc += self.nextInst()
 
 	def prompt(self):
-		if not self.buff:
+		if not self.txtInput.hasData():
 			print('\n> ' if self.mode == Mode.Execute else '...> ', end='')
-		while True:
-			word = self.nextWord()
-			if not word:
-				return
-			self.execWord(word)
+		while self.read():
+			pass
 
 	def pushNum(self):
 		self.dstack.append(self.nextInst())
+
+	def read(self):
+		word = self.txtInput.nextWord()
+		if not word:
+			return False
+		self.execWord(word)
+		return True
 
 	def returnFunc(self):
 		self.currFuncId, self.pc = self.rstack.pop()
@@ -148,8 +186,13 @@ class BaseVM:
 		# overload this function to add functions
 		pass
 
-	def runInterpreter(self):
-		mainCode = [OpCode.Prompt, OpCode.Jump, -2]
+	def runInterpreter(self, filename):
+		if filename:
+			self.txtInput = TextInput(filename)
+			mainCode = [OpCode.Read, OpCode.Jump, -2]
+		else:
+			mainCode = [OpCode.Prompt, OpCode.Jump, -2]
+
 		self.currFuncId, self.currFunc = self.addFunc(' ', code=mainCode)
 
 		while self.runVM:
@@ -164,14 +207,14 @@ class VM(BaseVM):
 
 	def defineFunc(self):
 		self.mode = Mode.Compile
-		name = self.nextWord()
+		name = self.txtInput.nextWord()
 		while not name:
 			self.prompt()
-			name = self.nextWord()
+			name = self.txtInput.nextWord()
 		_, func = self.findFunc(name)
 		if func:
 			self.endDefineFunc()
-			self.printError("Function already defined: " + name)
+			self.txtInput.printError("Function already defined: " + name)
 			return
 		_, self.defFunc = self.addFunc(name, code=[])
 
@@ -236,4 +279,10 @@ class VM(BaseVM):
 
 if __name__ == "__main__":
 	vm = VM()
-	vm.runInterpreter()
+
+	if len(sys.argv) > 1:
+		filename = sys.argv[1]
+	else:
+		filename = None
+
+	vm.runInterpreter(filename)
