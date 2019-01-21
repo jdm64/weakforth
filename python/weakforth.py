@@ -31,11 +31,15 @@ class UserInput:
 
 class TextInput:
 	def __init__(self, filename):
-		with open(filename, 'r') as f:
-			data = f.read().split()
 		self.buff = deque()
-		self.buff.extend(data)
-		self.buff.append('exit')
+		with open(filename, 'r') as f:
+			first = f.readline()
+			if not first.startswith("#!"):
+				words = first.split()
+				if words:
+					self.buff.extend(words)
+			self.buff.extend(f.read().split())
+			self.buff.append('exit')
 
 	def hasData(self):
 		return bool(self.buff)
