@@ -68,19 +68,15 @@ class BaseVM:
 		self.ftable = []
 		self.dstack = []
 		self.rstack = []
-		self.defFunc = None
 		self.currFunc = None
 		self.currFuncId = 0
 		self.pc = -1
 		self.mode = Mode.Execute
-		self.txtInput = UserInput()
 
 		self.opTable = {
 			OpCode.Call    : self.call,
 			OpCode.Jump    : self.jump,
-			OpCode.Prompt  : self.prompt,
 			OpCode.PushNum : self.pushNum,
-			OpCode.Read    : self.read,
 			OpCode.Return  : self.returnFunc,
 		}
 
@@ -106,9 +102,6 @@ class BaseVM:
 		self.pc += 1
 		return self.currFunc.code[self.pc]
 
-	def invalidInst(self):
-		self.txtInput.printError("Invalid instruction: " + self.currInst())
-
 	def findFunc(self, name):
 		funcs = [[i, x] for i, x in enumerate(self.ftable) if x.name == name]
 		return funcs[0] if funcs else [None, None]
@@ -127,28 +120,9 @@ class BaseVM:
 		else:
 			func.run()
 
-	def execWord(self, word):
-		i, func = self.findFunc(word)
-		if not func:
-			num = self.toNumber(word)
-			if num == None:
-				self.txtInput.printError("Error: `" + word + "` not a function or a number")
-				return
-
-			if self.mode == Mode.Compile:
-				self.defFunc.code.extend([OpCode.PushNum, num])
-			else:
-				self.dstack.append(num)
-			return
-
-		if func.immediate:
-			func.run()
-		elif self.mode == Mode.Execute:
-			self.callFunc(i, func)
-			if func.code:
-				self.txtInput.prependEmpty()
-		else:
-			self.defFunc.code.extend([OpCode.Call, i])
+	def setupFunctions(self):
+		# overload this function to add functions
+		pass
 
 	####################
 	# OpCode Functions #
@@ -162,45 +136,12 @@ class BaseVM:
 	def jump(self):
 		self.pc += self.nextInst()
 
-	def prompt(self):
-		if not self.txtInput.hasData():
-			print('\n> ' if self.mode == Mode.Execute else '...> ', end='')
-		while self.read():
-			pass
-
 	def pushNum(self):
 		self.dstack.append(self.nextInst())
-
-	def read(self):
-		word = self.txtInput.nextWord()
-		if not word:
-			return False
-		self.execWord(word)
-		return True
 
 	def returnFunc(self):
 		self.currFuncId, self.pc = self.rstack.pop()
 		self.currFunc = self.ftable[self.currFuncId]
-
-	#########################
-	# Setup & Run Functions #
-	#########################
-
-	def setupFunctions(self):
-		# overload this function to add functions
-		pass
-
-	def runInterpreter(self, filename):
-		if filename:
-			self.txtInput = TextInput(filename)
-			mainCode = [OpCode.Read, OpCode.Jump, -2]
-		else:
-			mainCode = [OpCode.Prompt, OpCode.Jump, -2]
-
-		self.currFuncId, self.currFunc = self.addFunc(' ', code=mainCode)
-
-		while self.runVM:
-			self.opTable.get(self.nextInst(), self.invalidInst)()
 
 class VM(BaseVM):
 	def __init__(self):
@@ -208,25 +149,6 @@ class VM(BaseVM):
 
 	def exit(self):
 		self.runVM = False
-
-	def defineFunc(self):
-		self.mode = Mode.Compile
-		name = self.txtInput.nextWord()
-		while not name:
-			self.prompt()
-			name = self.txtInput.nextWord()
-		_, func = self.findFunc(name)
-		if func:
-			self.endDefineFunc()
-			self.txtInput.printError("Function already defined: " + name)
-			return
-		_, self.defFunc = self.addFunc(name, code=[])
-
-	def endDefineFunc(self):
-		self.mode = Mode.Execute
-		if self.defFunc:
-			self.defFunc.code.append(OpCode.Return)
-			self.defFunc = None
 
 	def stackDup(self):
 		self.dstack.append(self.dstack[-1])
@@ -267,8 +189,6 @@ class VM(BaseVM):
 		print(self.dstack)
 
 	def setupFunctions(self):
-		self.addFunc(':' , self.defineFunc)
-		self.addFunc(';' , self.endDefineFunc, immediate=True)
 		self.addFunc('.' , self.printTopStack)
 		self.addFunc('..', self.printFullStack)
 		self.addFunc('+' , self.stackAdd)
@@ -281,6 +201,87 @@ class VM(BaseVM):
 		self.addFunc('swp' , self.stackSwp)
 		self.addFunc('exit', self.exit)
 
+class Interpreter:
+	def __init__(self, vm, filename):
+		self.vm = vm
+		self.vm.opTable[OpCode.Prompt] = self.prompt
+		self.vm.opTable[OpCode.Read] = self.read
+
+		if filename:
+			self.txtInput = TextInput(filename)
+			mainCode = [OpCode.Read, OpCode.Jump, -2]
+		else:
+			self.txtInput = UserInput()
+			mainCode = [OpCode.Prompt, OpCode.Jump, -2]
+
+		self.vm.currFuncId, self.vm.currFunc = self.vm.addFunc(' ', code=mainCode)
+		self.vm.addFunc(':' , self.defineFunc)
+		self.vm.addFunc(';' , self.endDefineFunc, immediate=True)
+
+		self.defFunc = None
+
+	def invalidInst(self):
+		self.txtInput.printError("Invalid instruction: " + self.currInst())
+
+	def execWord(self, word):
+		i, func = self.vm.findFunc(word)
+		if not func:
+			num = self.vm.toNumber(word)
+			if num == None:
+				self.txtInput.printError("Error: `" + word + "` not a function or a number")
+				return
+
+			if self.vm.mode == Mode.Compile:
+				self.defFunc.code.extend([OpCode.PushNum, num])
+			else:
+				self.vm.dstack.append(num)
+			return
+
+		if func.immediate:
+			func.run()
+		elif self.vm.mode == Mode.Execute:
+			self.vm.callFunc(i, func)
+			if func.code:
+				self.txtInput.prependEmpty()
+		else:
+			self.defFunc.code.extend([OpCode.Call, i])
+
+	def defineFunc(self):
+		self.vm.mode = Mode.Compile
+		name = self.txtInput.nextWord()
+		while not name:
+			self.prompt()
+			name = self.txtInput.nextWord()
+		_, func = self.vm.findFunc(name)
+		if func:
+			self.endDefineFunc()
+			self.txtInput.printError("Function already defined: " + name)
+			return
+		_, self.defFunc = self.vm.addFunc(name, code=[])
+
+	def endDefineFunc(self):
+		self.vm.mode = Mode.Execute
+		if self.defFunc:
+			self.defFunc.code.append(OpCode.Return)
+			self.defFunc = None
+
+	def read(self):
+		word = self.txtInput.nextWord()
+		if not word:
+			return False
+		self.execWord(word)
+		return True
+
+	def prompt(self):
+		if not self.txtInput.hasData():
+			print('\n> ' if self.vm.mode == Mode.Execute else '...> ', end='')
+		while self.read():
+			pass
+
+	def run(self):
+		while self.vm.runVM:
+			self.vm.opTable.get(self.vm.nextInst(), self.invalidInst)()
+
 if __name__ == "__main__":
 	vm = VM()
 
@@ -289,4 +290,4 @@ if __name__ == "__main__":
 	else:
 		filename = None
 
-	vm.runInterpreter(filename)
+	Interpreter(vm, filename).run()
