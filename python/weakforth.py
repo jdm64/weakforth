@@ -80,8 +80,6 @@ class BaseVM:
 			OpCode.Return  : self.returnFunc,
 		}
 
-		self.setupFunctions()
-
 	##################
 	# Util functions #
 	##################
@@ -120,10 +118,6 @@ class BaseVM:
 		else:
 			func.run()
 
-	def setupFunctions(self):
-		# overload this function to add functions
-		pass
-
 	####################
 	# OpCode Functions #
 	####################
@@ -146,6 +140,7 @@ class BaseVM:
 class VM(BaseVM):
 	def __init__(self):
 		super().__init__()
+		self.setupFunctions()
 
 	def exit(self):
 		self.runVM = False
