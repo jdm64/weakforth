@@ -1,0 +1,107 @@
+
+import "Base.syp";
+
+int strlen(StrPtr str);
+
+StrPtr strcpy(StrPtr dest, StrPtr source);
+
+int strcmp(StrPtr lhs, StrPtr rhs);
+
+@void memcpy(@void dest, @void source, int size);
+
+class cstring
+{
+	struct this {
+		@[]int8 ptr;
+	}
+
+	this()
+	ptr{null}
+	{
+	}
+
+	#[mangle("cstring_this2")]
+	this(StrPtr str)
+	ptr{null}
+	{
+		if (!str) {
+			ptr = null;
+			return;
+		}
+		auto len = strlen(str);
+		ptr = new [len + 1]int8;
+		memcpy(ptr, str, len);
+		ptr[len] = '\0';
+	}
+
+	#[mangle("cstring_this3")]
+	this(cstring str)
+	{
+		if (!str.ptr) {
+			ptr = null;
+			return;
+		}
+		auto len = strlen(str.ptr);
+		ptr = new [len + 1]int8;
+		memcpy(ptr, str.ptr, len);
+		ptr[len] = '\0';
+	}
+
+	int size()
+	{
+		return ptr ? strlen(ptr) : 0;
+	}
+
+	void setRange(StrPtr str, int len)
+	{
+		if (ptr)
+			~this();
+		ptr = new [len + 1]int8;
+		memcpy(ptr, str, len);
+		ptr[len] = '\0';
+	}
+
+	void set(StrPtr str)
+	{
+		setRange(str, strlen(str));
+	}
+
+	@this addRange(StrPtr str, int len)
+	{
+		if (!ptr) {
+			setRange(str, len);
+			return this;
+		}
+		auto size = strlen(ptr->as(@[]const int8));
+		auto newSize = size + len;
+		auto p = new [newSize + 1]int8;
+		memcpy(p, ptr, size);
+		memcpy(p[size]$, str, len);
+		p[newSize] = '\0';
+		~this();
+		ptr = p;
+
+		return this;
+	}
+
+	@this add(StrPtr str)
+	{
+		addRange(str, strlen(str));
+		return this;
+	}
+
+	StrPtr get()
+	{
+		return ptr->as(StrPtr);
+	}
+
+	bool eq(StrPtr other)
+	{
+		return !strcmp(ptr->as(StrPtr), other);
+	}
+
+	~this()
+	{
+		delete ptr;
+	}
+}

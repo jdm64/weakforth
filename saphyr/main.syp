@@ -1,0 +1,510 @@
+import "cstring.syp";
+import "List.syp";
+import "Queue.syp";
+
+class Lambda
+{
+	struct this
+	{
+		@void func;
+		@void inst;
+	}
+
+	void call()
+	{
+		auto ptr = func->as(@(@void)void);
+		ptr(inst);
+	}
+}
+
+class FunctionItem
+{
+	struct this
+	{
+		cstring name;
+		List<byte> code;
+		Lambda callback;
+		bool immediate;
+	}
+
+	this()
+	name{null->as(StrPtr)}, callback{}, immediate{false}
+	{
+	}
+
+	#[mangle("FunctionItem_this2")]
+	this(StrPtr n)
+	name{n}, callback{}, immediate{false}
+	{
+	}
+
+	#[mangle("FunctionItem_this3")]
+	this(FunctionItem n)
+	name{n.name}, callback{n.callback}, immediate{n.immediate}
+	{
+		for (int i = 0; i < n.code.size(); i++)
+			code.add(code.at(i));
+	}
+
+	void pushInt(int val)
+	{
+		code.add(val);
+	}
+
+	void run()
+	{
+		callback.call();
+	}
+}
+
+struct FuncPtr
+{
+	int id;
+	@FunctionItem ptr;
+}
+
+class FunctionTable
+{
+	struct this {
+		List<FunctionItem> items;
+	}
+
+	FuncPtr find(cstring name)
+	{
+		for (int i = items.size() - 1; i >= 0; i--) {
+			auto func = items.ref(i);
+			if (func.name.eq(name.get())) {
+				FuncPtr ret;
+				ret.id = i;
+				ret.ptr = func;
+				return ret;
+			}
+		}
+		FuncPtr ret{};
+		return ret;
+	}
+
+	FuncPtr add(cstring name)
+	{
+		FunctionItem func{name.get()};
+		items.add(func);
+
+		FuncPtr ptr;
+		ptr.id = items.size() - 1;
+		ptr.ptr = items.ref(ptr.id);
+		return ptr;
+	}
+}
+
+enum OpCode
+{
+	Call, Jump, Prompt, PushNum, Read, Return
+}
+
+enum Mode
+{
+	Execute, Compile
+}
+
+struct ReturnData
+{
+	int id, pc;
+}
+
+class VM
+{
+	struct this
+	{
+		FunctionTable ftable;
+		List<int> dstack;
+		List<ReturnData> rstack;
+		FuncPtr currF;
+		int pc;
+		Mode mode;
+		bool runVM;
+	}
+
+	byte currOpCode()
+	{
+		return currF.ptr.code.at(pc);
+	}
+
+	byte nextOpCode()
+	{
+		return currF.ptr.code.at(++pc);
+	}
+
+	int nextInt()
+	{
+		return nextOpCode();
+	}
+
+	FuncPtr findFunc(cstring name)
+	{
+		return ftable.find(name);
+	}
+
+	FuncPtr addFunc(cstring name)
+	{
+		return ftable.add(name);
+	}
+
+	void callFunc(FuncPtr func)
+	{
+		if (func.ptr.code.size()) {
+			ReturnData rd;
+			rd.id = currF.id;
+			rd.pc = pc;
+			rstack.add(rd);
+			currF.ptr = func.ptr;
+			currF.id = func.id;
+			pc = -1;
+		} else {
+			func.ptr.run();
+		}
+	}
+
+	void call()
+	{
+		FuncPtr func;
+		func.id = nextInt();
+		func.ptr = ftable.items.ref(func.id);
+		callFunc(func);
+	}
+
+	void jump()
+	{
+		pc += nextInt() - 1;
+	}
+
+	void pushNum()
+	{
+		dstack.add(nextInt());
+	}
+
+	void returnFunc()
+	{
+		auto data = rstack.pop();
+		pc = data.pc;
+		currF.id = data.id;
+		currF.ptr = ftable.items.ref(currF.id);
+	}
+
+	void exit()
+	{
+		runVM = false;
+	}
+
+	void stackAdd()
+	{
+		auto a = dstack.pop();
+		auto b = dstack.pop();
+		dstack.add(b + a);
+	}
+
+	void stackSub()
+	{
+		auto a = dstack.pop();
+		auto b = dstack.pop();
+		dstack.add(b - a);
+	}
+
+	void stackMul()
+	{
+		auto a = dstack.pop();
+		auto b = dstack.pop();
+		dstack.add(b * a);
+	}
+
+	void stackDiv()
+	{
+		auto a = dstack.pop();
+		auto b = dstack.pop();
+		dstack.add(b / a);
+	}
+
+	void stackDup()
+	{
+		dstack.add(dstack.top());
+	}
+
+	void stackPop()
+	{
+		dstack.pop();
+	}
+
+	void stackClr()
+	{
+		dstack.clear();
+	}
+
+	void stackSwp()
+	{
+		auto a = dstack.pop();
+		auto b = dstack.pop();
+		dstack.add(a);
+		dstack.add(b);
+	}
+
+	void printTopStack()
+	{
+		if (dstack.size()) {
+			auto str = toString(dstack.top());
+			puts(str);
+			delete str;
+		} else {
+			puts("<empty>");
+		}
+	}
+
+	void printStack()
+	{
+		fputs("[ ", stdout);
+		for (int i = 0; i < dstack.size(); i++) {
+			auto str = toString(dstack.at(i));
+			fputs(str, stdout);
+			fputs(" ", stdout);
+			delete str;
+		}
+		puts("]");
+	}
+
+	void addCallbackFunc(StrPtr name, @void funcPtr)
+	{
+		cstring n{name};
+		auto func = addFunc(n);
+		func.ptr.callback.func = funcPtr;
+		func.ptr.callback.inst = this;
+	}
+
+	void setupFunctions()
+	{
+		addCallbackFunc(".", printTopStack);
+		addCallbackFunc("..", printStack);
+
+		addCallbackFunc("+", stackAdd);
+		addCallbackFunc("-", stackSub);
+		addCallbackFunc("*", stackMul);
+		addCallbackFunc("/", stackDiv);
+
+		addCallbackFunc("dup", stackDup);
+		addCallbackFunc("pop", stackPop);
+		addCallbackFunc("clr", stackClr);
+		addCallbackFunc("swp", stackSwp);
+		addCallbackFunc("exit", exit);
+	}
+
+	this()
+	runVM{true}, mode{Mode.Execute}, pc{-1}
+	{
+		setupFunctions();
+	}
+
+}
+
+class TxtInput
+{
+	struct this
+	{
+		Queue<cstring> buff;
+	}
+
+	bool empty()
+	{
+		return buff.empty();
+	}
+
+	void printError(StrPtr str)
+	{
+		puts(str);
+		buff.clear();
+		cstring empty;
+		buff.push(empty);
+	}
+
+	void prependEmpty()
+	{
+		cstring empty;
+		buff.pushFront(empty);
+	}
+
+	void readLine()
+	{
+		[256]byte line;
+
+		fgets(line$, 256, stdin);
+
+		auto ptr = strtok(line$, " \t\n");
+		while (ptr) {
+			cstring word{ptr};
+			buff.push(word);
+			ptr = strtok(null, " \t\n");
+		}
+	}
+
+	cstring nextWord()
+	{
+		if (buff.empty()) {
+			readLine();
+			cstring empty;
+			buff.push(empty);
+		}
+		return buff.pop();
+	}
+}
+
+class Interpreter
+{
+	struct this
+	{
+		@VM vm;
+		@FunctionItem defFunc;
+		@TxtInput input;
+	}
+
+	bool execWord(cstring word)
+	{
+		auto func = vm.findFunc(word);
+		if (!func.ptr) {
+			bool error = false;
+			auto num = toNumber(word.get(), error$);
+			if (error) {
+				cstring msg;
+				msg.add("Error: `").add(word.get()).add("` not a function or a number");
+				input.printError(msg.get());
+			} else if (vm.mode == Mode.Execute) {
+				vm.dstack.add(num);
+			} else {
+				defFunc.code.add(OpCode.PushNum);
+				defFunc.pushInt(num);
+			}
+		} else if (func.ptr.immediate) {
+			func.ptr.run();
+		} else if (vm.mode == Mode.Execute) {
+			vm.callFunc(func);
+			return !func.ptr.code.size();
+		} else {
+			defFunc.code.add(OpCode.Call);
+			defFunc.pushInt(func.id);
+		}
+		return true;
+	}
+
+	bool read()
+	{
+		cstring word = input.nextWord();
+		if (!word.size())
+			return false;
+		return execWord(word);
+	}
+
+	void prompt()
+	{
+		if (input.empty())
+			fputs(vm.mode == Mode.Execute ? "\n> " : "...> ", stdout);
+
+		while (read())
+			;
+	}
+
+	void endDefineFunc()
+	{
+		vm.mode = Mode.Execute;
+		if (defFunc) {
+			defFunc.code.add(OpCode.Return);
+			defFunc = null;
+		}
+	}
+
+	void defineFunc()
+	{
+		vm.mode = Mode.Compile;
+		auto name = input.nextWord();
+		while (!name.size()) {
+			prompt();
+			name = input.nextWord();
+		}
+
+		auto func = vm.findFunc(name);
+		if (func.ptr) {
+			endDefineFunc();
+
+			cstring msg{"Function already defined: "};
+			msg.add(name.get());
+
+			input.printError(msg.get());
+			return;
+		}
+
+		func = vm.addFunc(name);
+		defFunc = func.ptr;
+	}
+
+	void run()
+	{
+		while (vm.runVM) {
+			switch (vm.nextOpCode()) {
+			case OpCode.Call:
+				vm.call();
+				break;
+			case OpCode.Jump:
+				vm.jump();
+				break;
+			case OpCode.Prompt:
+				prompt();
+				break;
+			case OpCode.PushNum:
+				vm.pushNum();
+				break;
+			case OpCode.Read:
+				read();
+				break;
+			case OpCode.Return:
+				vm.returnFunc();
+				break;
+			default:
+				fputs("Invalid Opcode: ", stdout);
+				fputs(toString(vm.currOpCode()), stdout);
+				fputs(" ; At Instruction: ", stdout);
+				puts(toString(vm.pc));
+			}
+		}
+	}
+
+	this(@VM vm, @TxtInput input)
+	vm{vm}, input{input}, defFunc{}
+	{
+		cstring name{" "};
+		auto main = vm.addFunc(name);
+		main.ptr.code.add(OpCode.Prompt);
+		main.ptr.code.add(OpCode.Jump);
+		main.ptr.pushInt(-2);
+
+		vm.currF = main;
+		defFunc = null;
+
+		cstring name2 = ":";
+		auto colFunc = vm.addFunc(name2);
+		colFunc.ptr.callback.func = defineFunc;
+		colFunc.ptr.callback.inst = this;
+
+		cstring name3 = ";";
+		auto semicolFunc = vm.addFunc(name3);
+		semicolFunc.ptr.callback.func = endDefineFunc;
+		semicolFunc.ptr.callback.inst = this;
+		semicolFunc.ptr.immediate = true;
+	}
+}
+
+int main()
+{
+	VM vm;
+	TxtInput input;
+	Interpreter runner{vm$, input$};
+
+	runner.run();
+
+	vm.~this();
+
+	return 0;
+}

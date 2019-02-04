@@ -1,0 +1,76 @@
+
+int rand();
+
+int time(@void t);
+
+int getrandom(@void buff, int len, uint flags);
+
+alias byte = int8;
+
+class FILE;
+
+@FILE stdout;
+@FILE stdin;
+
+alias StrPtr = @const[]int8;
+
+int64 strtol(StrPtr str, @StrPtr end, int base);
+int getchar();
+int puts(StrPtr str);
+int fputs(StrPtr str, @FILE stream);
+int fputc(int c, @FILE stream);
+StrPtr fgets(StrPtr str, int count, @FILE stream);
+StrPtr strtok(StrPtr str, StrPtr delimiters);
+
+int toNumber(StrPtr num, @bool error)
+{
+	auto end = num;
+	auto ret = strtol(num, end$, 10);
+	if (end == num)
+		error @= true;
+	return ret;
+}
+
+void reverse(@[]byte str, int length)
+{
+	int start = 0;
+	int end = length - 1;
+	while (start < end) {
+		auto tmp = str[start];
+		str[start] = str[end];
+		str[end] = tmp;
+		start++;
+		end--;
+	}
+}
+
+StrPtr toString(int num)
+{
+	@[]byte str = new [16]byte;
+
+	if (num == 0) {
+		str[0] = '0';
+		str[1] = '\0';
+		return str;
+	}
+
+	bool isNegative = false;
+	if (num < 0) {
+		isNegative = true;
+		num = -num;
+	}
+
+	int i = 0;
+	while (num != 0) {
+		int rem = num % 10;
+		str[i++] = rem + '0';
+		num /= 10;
+	}
+
+	if (isNegative)
+		str[i++] = '-';
+	str[i] = '\0';
+
+	reverse(str, i);
+	return str;
+}
