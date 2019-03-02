@@ -4,56 +4,18 @@ import sys
 from enum import Enum
 from collections import deque
 
+def toNumber(self, num):
+	try:
+		return int(num)
+	except:
+		try:
+			return float(num)
+		except:
+			return None
+
 OpCode = Enum('OpCode', 'Call Jump Prompt PushNum Read Return')
 
 Mode = Enum('Mode', 'Compile Execute')
-
-class UserInput:
-	def __init__(self):
-		self.buff = deque()
-
-	def hasData(self):
-		return bool(self.buff)
-
-	def prependEmpty(self):
-		self.buff.insert(0, '')
-
-	def printError(self, msg):
-		print(msg)
-		self.buff.clear()
-		self.buff.append('')
-
-	def nextWord(self):
-		if not self.buff:
-			self.buff.extend(input().split())
-			self.buff.append('')
-		return self.buff.popleft()
-
-class TextInput:
-	def __init__(self, filename):
-		self.buff = deque()
-		with open(filename, 'r') as f:
-			first = f.readline()
-			if not first.startswith("#!"):
-				words = first.split()
-				if words:
-					self.buff.extend(words)
-			self.buff.extend(f.read().split())
-			self.buff.append('exit')
-
-	def hasData(self):
-		return bool(self.buff)
-
-	def prependEmpty(self):
-		self.buff.insert(0, '')
-
-	def printError(self, msg):
-		print(msg)
-		self.buff.clear()
-		self.buff.append('exit')
-
-	def nextWord(self):
-		return self.buff.popleft()
 
 class FunctionItem:
 	def __init__(self, name, run=None, code=None, immediate=False):
@@ -83,15 +45,6 @@ class BaseVM:
 	##################
 	# Util functions #
 	##################
-
-	def toNumber(self, num):
-		try:
-			return int(num)
-		except:
-			try:
-				return float(num)
-			except:
-				return None
 
 	def currInst(self):
 		return self.currFunc.code[self.pc]
@@ -195,6 +148,53 @@ class VM(BaseVM):
 		self.addFunc('clr' , self.stackClr)
 		self.addFunc('swp' , self.stackSwp)
 		self.addFunc('exit', self.exit)
+
+class UserInput:
+	def __init__(self):
+		self.buff = deque()
+
+	def hasData(self):
+		return bool(self.buff)
+
+	def prependEmpty(self):
+		self.buff.insert(0, '')
+
+	def printError(self, msg):
+		print(msg)
+		self.buff.clear()
+		self.buff.append('')
+
+	def nextWord(self):
+		if not self.buff:
+			self.buff.extend(input().split())
+			self.buff.append('')
+		return self.buff.popleft()
+
+class TextInput:
+	def __init__(self, filename):
+		self.buff = deque()
+		with open(filename, 'r') as f:
+			first = f.readline()
+			if not first.startswith("#!"):
+				words = first.split()
+				if words:
+					self.buff.extend(words)
+			self.buff.extend(f.read().split())
+			self.buff.append('exit')
+
+	def hasData(self):
+		return bool(self.buff)
+
+	def prependEmpty(self):
+		self.buff.insert(0, '')
+
+	def printError(self, msg):
+		print(msg)
+		self.buff.clear()
+		self.buff.append('exit')
+
+	def nextWord(self):
+		return self.buff.popleft()
 
 class Interpreter:
 	def __init__(self, vm, filename):
