@@ -32,13 +32,13 @@ class FunctionItem
 	{
 	}
 
-	#[mangle("FunctionItem_this2")]
+	#[mangle("this2")]
 	this(StrPtr n)
 	name{n}, callback{}, immediate{false}
 	{
 	}
 
-	#[mangle("FunctionItem_this3")]
+	#[mangle("this3")]
 	this(FunctionItem n)
 	name{n.name}, callback{n.callback}, immediate{n.immediate}
 	{

@@ -20,7 +20,7 @@ class cstring
 	{
 	}
 
-	#[mangle("cstring_this2")]
+	#[mangle("this2")]
 	this(StrPtr str)
 	ptr{null}
 	{
@@ -34,7 +34,7 @@ class cstring
 		ptr[len] = '\0';
 	}
 
-	#[mangle("cstring_this3")]
+	#[mangle("this3")]
 	this(cstring str)
 	{
 		if (!str.ptr) {
