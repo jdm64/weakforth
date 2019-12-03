@@ -1,0 +1,15 @@
+
+class Lambda
+{
+	struct this
+	{
+		@void func;
+		@void inst;
+	}
+
+	void call()
+	{
+		auto ptr = func->as(@(@void)void);
+		ptr(inst);
+	}
+}

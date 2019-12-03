@@ -1,13 +1,15 @@
 
-OBJS = Base.o cstring.o List.o Queue.o main.o
-LL_FILES = Base.ll cstring.ll List.ll Queue.ll main.ll
+STD_DIR = ~/.local/share/saphyr/pkgs/std
+
+OBJS = $(STD_DIR)/cstring.o Util.o main.o
+LL_FILES = $(STD_DIR)/cstring.ll Util.ll main.ll
 BIN = weakforth
 
 all : $(OBJS)
 	clang $(OBJS) -o $(BIN)
 
 clean :
-	rm -f *.o *.ll $(BIN)*
+	rm -f $(OBJS) $(LL_FILES) $(BIN)*
 
 %.o : %.syp
 	saphyr $<
@@ -17,3 +19,6 @@ clean :
 
 debug-build : $(LL_FILES)
 	llvm-link $(LL_FILES) -o $(BIN).ll
+
+install-libs :
+	bash <(wget -qO- https://raw.githubusercontent.com/jdm64/saphyr-libs/master/setup.sh)

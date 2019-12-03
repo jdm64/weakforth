@@ -1,21 +1,9 @@
-import "cstring.syp";
-import "List.syp";
-import "Queue.syp";
+import std.cstring;
+import std.List;
+import std.Queue;
+import std.cstdio;
 
-class Lambda
-{
-	struct this
-	{
-		@void func;
-		@void inst;
-	}
-
-	void call()
-	{
-		auto ptr = func->as(@(@void)void);
-		ptr(inst);
-	}
-}
+import "Util.syp";
 
 class FunctionItem
 {
