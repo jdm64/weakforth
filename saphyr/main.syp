@@ -492,7 +492,5 @@ int main()
 
 	runner.run();
 
-	vm.~this();
-
 	return 0;
 }
