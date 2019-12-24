@@ -1,8 +1,8 @@
 
 STD_DIR = ~/.local/share/saphyr/pkgs/std
 
-OBJS = $(STD_DIR)/cstring.o Util.o main.o
-LL_FILES = $(STD_DIR)/cstring.ll Util.ll main.ll
+OBJS = $(STD_DIR)/cstring.o main.o
+LL_FILES = $(STD_DIR)/cstring.ll main.ll
 BIN = weakforth
 
 all : $(OBJS)
