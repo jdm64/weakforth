@@ -44,7 +44,7 @@ class FunctionItem
 	name{n.name}, callback{n.callback}, immediate{n.immediate}
 	{
 		for (int i = 0; i < n.code.size(); i++)
-			code.add(code.at(i));
+			code.add(n.code.at(i));
 	}
 
 	void pushInt(int val)
