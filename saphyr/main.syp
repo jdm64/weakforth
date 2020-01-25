@@ -34,7 +34,7 @@ class FunctionItem
 	}
 
 	#[mangle("this2")]
-	this(StrPtr n)
+	this(cstring n)
 	name{n}, callback{}, immediate{false}
 	{
 	}
@@ -45,6 +45,17 @@ class FunctionItem
 	{
 		for (int i = 0; i < n.code.size(); i++)
 			code.add(n.code.at(i));
+	}
+
+	#[oper("=")]
+	void asgn(FunctionItem item)
+	{
+		name = item.name;
+		code.clear();
+		for (int i = 0; i < item.code.size(); i++)
+			code.add(item.code.at(i));
+		callback = item.callback;
+		immediate = item.immediate;
 	}
 
 	void pushInt(int val)
@@ -58,42 +69,42 @@ class FunctionItem
 	}
 }
 
-struct FuncPtr
-{
-	int id;
-	@FunctionItem ptr;
-}
-
 class FunctionTable
 {
 	struct this {
 		List<FunctionItem> items;
 	}
 
-	FuncPtr find(cstring name)
+	@FunctionItem ref(int id)
+	{
+		return items.ref(id);
+	}
+
+	@FunctionItem find(cstring name, @int id)
 	{
 		for (int i = items.size() - 1; i >= 0; i--) {
 			auto func = items.ref(i);
 			if (func.name.eq(name.get())) {
-				FuncPtr ret;
-				ret.id = i;
-				ret.ptr = func;
-				return ret;
+				id @= i;
+				return func;
 			}
 		}
-		FuncPtr ret{};
-		return ret;
+		return null;
 	}
 
-	FuncPtr add(cstring name)
+	#[mangle("find2")]
+	@FunctionItem find(cstring name)
 	{
-		FunctionItem func{name.get()};
+		int id;
+		return find(name, id$);
+	}
+
+	int add(cstring name)
+	{
+		FunctionItem func{name};
 		items.add(func);
 
-		FuncPtr ptr;
-		ptr.id = items.size() - 1;
-		ptr.ptr = items.ref(ptr.id);
-		return ptr;
+		return items.size() - 1;
 	}
 }
 
@@ -119,20 +130,25 @@ class VM
 		FunctionTable ftable;
 		List<int> dstack;
 		List<ReturnData> rstack;
-		FuncPtr currF;
+		int fc;
 		int pc;
 		Mode mode;
 		bool runVM;
 	}
 
+	byte getOpCode(int idx)
+	{
+		return ftable.ref(fc).code.at(idx);
+	}
+
 	byte currOpCode()
 	{
-		return currF.ptr.code.at(pc);
+		return getOpCode(pc);
 	}
 
 	byte nextOpCode()
 	{
-		return currF.ptr.code.at(++pc);
+		return getOpCode(++pc);
 	}
 
 	int nextInt()
@@ -140,37 +156,41 @@ class VM
 		return nextOpCode();
 	}
 
-	FuncPtr findFunc(cstring name)
+	@FunctionItem findFunc(cstring name, @int id)
 	{
-		return ftable.find(name);
+		return ftable.find(name, id);
 	}
 
-	FuncPtr addFunc(cstring name)
+	#[mangle("findFunc2")]
+	@FunctionItem findFunc(cstring name)
+	{
+		int id;
+		return findFunc(name, id$);
+	}
+
+	int addFunc(cstring name)
 	{
 		return ftable.add(name);
 	}
 
-	void callFunc(FuncPtr func)
+	void callFunc(int func)
 	{
-		if (func.ptr.code.size()) {
+		auto ptr = ftable.ref(func);
+		if (ptr.code.size()) {
 			ReturnData rd;
-			rd.id = currF.id;
+			rd.id = fc;
 			rd.pc = pc;
 			rstack.add(rd);
-			currF.ptr = func.ptr;
-			currF.id = func.id;
+			fc = func;
 			pc = -1;
 		} else {
-			func.ptr.run();
+			ptr.run();
 		}
 	}
 
 	void call()
 	{
-		FuncPtr func;
-		func.id = nextInt();
-		func.ptr = ftable.items.ref(func.id);
-		callFunc(func);
+		callFunc(nextInt());
 	}
 
 	void jump()
@@ -187,8 +207,7 @@ class VM
 	{
 		auto data = rstack.pop();
 		pc = data.pc;
-		currF.id = data.id;
-		currF.ptr = ftable.items.ref(currF.id);
+		fc = data.id;
 	}
 
 	void exit()
@@ -273,9 +292,9 @@ class VM
 	void addCallbackFunc(StrPtr name, @void funcPtr)
 	{
 		cstring n{name};
-		auto func = addFunc(n);
-		func.ptr.callback.func = funcPtr;
-		func.ptr.callback.inst = this;
+		auto ptr = ftable.ref(addFunc(n));
+		ptr.callback.func = funcPtr;
+		ptr.callback.inst = this;
 	}
 
 	void setupFunctions()
@@ -365,8 +384,9 @@ class Interpreter
 
 	bool execWord(cstring word)
 	{
-		auto func = vm.findFunc(word);
-		if (!func.ptr) {
+		int id;
+		auto ptr = vm.findFunc(word, id$);
+		if (!ptr) {
 			bool error = false;
 			auto num = toNumber(word.get(), error$);
 			if (error) {
@@ -379,14 +399,14 @@ class Interpreter
 				defFunc.code.add(OpCode.PushNum);
 				defFunc.pushInt(num);
 			}
-		} else if (func.ptr.immediate) {
-			func.ptr.run();
+		} else if (ptr.immediate) {
+			ptr.run();
 		} else if (vm.mode == Mode.Execute) {
-			vm.callFunc(func);
-			return !func.ptr.code.size();
+			vm.callFunc(id);
+			return !ptr.code.size();
 		} else {
 			defFunc.code.add(OpCode.Call);
-			defFunc.pushInt(func.id);
+			defFunc.pushInt(id);
 		}
 		return true;
 	}
@@ -426,8 +446,8 @@ class Interpreter
 			name = input.nextWord();
 		}
 
-		auto func = vm.findFunc(name);
-		if (func.ptr) {
+		auto ptr = vm.findFunc(name);
+		if (ptr) {
 			endDefineFunc();
 
 			cstring msg{"Function already defined: "};
@@ -437,8 +457,7 @@ class Interpreter
 			return;
 		}
 
-		func = vm.addFunc(name);
-		defFunc = func.ptr;
+		defFunc = vm.ftable.ref(vm.addFunc(name));
 	}
 
 	void run()
@@ -476,24 +495,25 @@ class Interpreter
 	vm{vm}, input{input}, defFunc{}
 	{
 		cstring name{" "};
-		auto main = vm.addFunc(name);
-		main.ptr.code.add(OpCode.Prompt);
-		main.ptr.code.add(OpCode.Jump);
-		main.ptr.pushInt(-2);
+		auto id = vm.addFunc(name);
+		auto ptr = vm.ftable.ref(id);
+		ptr.code.add(OpCode.Prompt);
+		ptr.code.add(OpCode.Jump);
+		ptr.pushInt(-2);
 
-		vm.currF = main;
+		vm.fc = id;
 		defFunc = null;
 
-		cstring name2 = ":";
-		auto colFunc = vm.addFunc(name2);
-		colFunc.ptr.callback.func = defineFunc;
-		colFunc.ptr.callback.inst = this;
+		name = ":";
+		ptr = vm.ftable.ref(vm.addFunc(name));
+		ptr.callback.func = defineFunc;
+		ptr.callback.inst = this;
 
-		cstring name3 = ";";
-		auto semicolFunc = vm.addFunc(name3);
-		semicolFunc.ptr.callback.func = endDefineFunc;
-		semicolFunc.ptr.callback.inst = this;
-		semicolFunc.ptr.immediate = true;
+		name = ";";
+		ptr = vm.ftable.ref(vm.addFunc(name));
+		ptr.callback.func = endDefineFunc;
+		ptr.callback.inst = this;
+		ptr.immediate = true;
 	}
 }
 
