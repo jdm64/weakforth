@@ -21,4 +21,4 @@ debug-build : $(LL_FILES)
 	llvm-link $(LL_FILES) -o $(BIN).ll
 
 install-libs :
-	bash <(wget -qO- https://raw.githubusercontent.com/jdm64/saphyr-libs/master/setup.sh)
+	bash -c "bash <(wget -qO- https://raw.githubusercontent.com/jdm64/saphyr-libs/master/setup.sh)"
