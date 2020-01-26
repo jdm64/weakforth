@@ -18,7 +18,7 @@ class Lambda
 	}
 }
 
-class FunctionItem
+class Function
 {
 	struct this
 	{
@@ -40,7 +40,7 @@ class FunctionItem
 	}
 
 	#[mangle("this3")]
-	this(FunctionItem n)
+	this(Function n)
 	name{n.name}, callback{n.callback}, immediate{n.immediate}
 	{
 		for (int i = 0; i < n.code.size(); i++)
@@ -48,7 +48,7 @@ class FunctionItem
 	}
 
 	#[oper("=")]
-	void asgn(FunctionItem item)
+	void asgn(Function item)
 	{
 		name = item.name;
 		code.clear();
@@ -72,15 +72,15 @@ class FunctionItem
 class FunctionTable
 {
 	struct this {
-		List<FunctionItem> items;
+		List<Function> items;
 	}
 
-	@FunctionItem ref(int id)
+	@Function ref(int id)
 	{
 		return items.ref(id);
 	}
 
-	@FunctionItem find(cstring name, @int id)
+	@Function find(cstring name, @int id)
 	{
 		for (int i = items.size() - 1; i >= 0; i--) {
 			auto func = items.ref(i);
@@ -93,7 +93,7 @@ class FunctionTable
 	}
 
 	#[mangle("find2")]
-	@FunctionItem find(cstring name)
+	@Function find(cstring name)
 	{
 		int id;
 		return find(name, id$);
@@ -101,7 +101,7 @@ class FunctionTable
 
 	int add(cstring name)
 	{
-		FunctionItem func{name};
+		Function func{name};
 		items.add(func);
 
 		return items.size() - 1;
@@ -156,13 +156,13 @@ class VM
 		return nextOpCode();
 	}
 
-	@FunctionItem findFunc(cstring name, @int id)
+	@Function findFunc(cstring name, @int id)
 	{
 		return ftable.find(name, id);
 	}
 
 	#[mangle("findFunc2")]
-	@FunctionItem findFunc(cstring name)
+	@Function findFunc(cstring name)
 	{
 		int id;
 		return findFunc(name, id$);
@@ -378,7 +378,7 @@ class Interpreter
 	struct this
 	{
 		@VM vm;
-		@FunctionItem defFunc;
+		@Function defFunc;
 		@TxtInput input;
 	}
 

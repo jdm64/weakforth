@@ -17,7 +17,7 @@ OpCode = Enum('OpCode', 'Call Jump Prompt PushNum Read Return')
 
 Mode = Enum('Mode', 'Compile Execute')
 
-class FunctionItem:
+class Function:
 	def __init__(self, name, run=None, code=None, immediate=False):
 		self.name = name
 		self.run = run
@@ -58,7 +58,7 @@ class BaseVM:
 		return funcs[0] if funcs else [None, None]
 
 	def addFunc(self, name, run=None, code=None, immediate=False):
-		func = FunctionItem(name, run, code, immediate)
+		func = Function(name, run, code, immediate)
 		self.ftable.append(func)
 		return [len(self.ftable) - 1, func]
 
