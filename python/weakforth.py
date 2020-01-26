@@ -4,7 +4,7 @@ import sys
 from enum import Enum
 from collections import deque
 
-def toNumber(self, num):
+def toNumber(num):
 	try:
 		return int(num)
 	except:
@@ -221,7 +221,7 @@ class Interpreter:
 	def execWord(self, word):
 		i, func = self.vm.findFunc(word)
 		if not func:
-			num = self.vm.toNumber(word)
+			num = toNumber(word)
 			if num == None:
 				self.txtInput.printError("Error: `" + word + "` not a function or a number")
 				return
