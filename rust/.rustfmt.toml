@@ -1,0 +1,3 @@
+# brace_style = "AlwaysNextLine"
+hard_tabs = true
+tab_spaces = 8
