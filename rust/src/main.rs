@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 use std::io::stdin;
+use std::io::stdout;
+use std::io::Write;
 
 union Callback {
 	vm: fn(&mut VM),
@@ -413,6 +415,7 @@ impl Interpreter {
 				_ => "...> ",
 			};
 			print!("{}", msg);
+			let _e = stdout().flush();
 		}
 
 		while self.read() {}
