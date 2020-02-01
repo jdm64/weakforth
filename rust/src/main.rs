@@ -134,7 +134,7 @@ struct VM {
 
 impl VM {
 	fn new() -> VM {
-		let mut vm = VM {
+		VM {
 			ftable: FunctionTable::new(),
 			dstack: vec![],
 			rstack: vec![],
@@ -142,10 +142,7 @@ impl VM {
 			pc: -1,
 			mode: Mode::Execute,
 			run_vm: true,
-		};
-
-		vm.setup_functions();
-		vm
+		}
 	}
 
 	fn get_opcode(&mut self, idx: usize) -> i8 {
@@ -485,6 +482,8 @@ impl Interpreter {
 			input: input,
 			def_id: None,
 		};
+
+		intptr.vm.setup_functions();
 
 		let id = intptr.vm.add_func(" ".to_string());
 		let ptr = intptr.vm.ftable.get(id).unwrap();
