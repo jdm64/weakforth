@@ -347,9 +347,9 @@ impl TxtInput {
 }
 
 struct Interpreter {
-	vm: &'static mut VM,
+	vm: Box<VM>,
 	def_id: Option<usize>,
-	input: &'static mut TxtInput,
+	input: Box<TxtInput>,
 }
 
 impl Interpreter {
@@ -476,7 +476,7 @@ impl Interpreter {
 		}
 	}
 
-	fn new(vm: &'static mut VM, input: &'static mut TxtInput) -> Interpreter {
+	fn new(vm: Box<VM>, input: Box<TxtInput>) -> Interpreter {
 		let mut intptr = Interpreter {
 			vm: vm,
 			input: input,
@@ -522,7 +522,7 @@ impl Interpreter {
 fn main() {
 	let vm = Box::new(VM::new());
 	let input = Box::new(TxtInput::new());
-	let mut runner = Interpreter::new(Box::leak(vm), Box::leak(input));
+	let mut runner = Interpreter::new(vm, input);
 
 	runner.run();
 }
