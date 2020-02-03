@@ -461,29 +461,29 @@ impl Interpreter {
 		}
 	}
 
+	fn setup(&mut self) {
+		self.vm.setup_functions();
+
+		let mut id = self.vm.add_func(" ".to_string());
+		let ptr = self.vm.ftable.get(id).unwrap();
+		ptr.push_int(OpCode::Prompt as i8);
+		ptr.push_opcode(OpCode::Jump as i8, -2);
+		self.vm.fc = id;
+
+		let mut cb = Callback::Interpreter(Interpreter::define_func, self);
+		self.vm.add_callback_any(":".to_string(), cb);
+
+		cb = Callback::Interpreter(Interpreter::end_define_func, self);
+		id = self.vm.add_callback_any(";".to_string(), cb);
+		self.vm.ftable.get(id).unwrap().immediate = true;
+	}
+
 	fn new(vm: Box<VM>, input: Box<TxtInput>) -> Interpreter {
-		let mut intptr = Interpreter {
+		Interpreter {
 			vm: vm,
 			input: input,
 			def_id: None,
-		};
-
-		intptr.vm.setup_functions();
-
-		let mut id = intptr.vm.add_func(" ".to_string());
-		let ptr = intptr.vm.ftable.get(id).unwrap();
-		ptr.push_int(OpCode::Prompt as i8);
-		ptr.push_opcode(OpCode::Jump as i8, -2);
-		intptr.vm.fc = id;
-
-		let mut cb = Callback::Interpreter(Interpreter::define_func, &mut intptr);
-		intptr.vm.add_callback_any(":".to_string(), cb);
-
-		cb = Callback::Interpreter(Interpreter::end_define_func, &mut intptr);
-		id = intptr.vm.add_callback_any(";".to_string(), cb);
-		intptr.vm.ftable.get(id).unwrap().immediate = true;
-
-		intptr
+		}
 	}
 }
 
@@ -492,5 +492,6 @@ fn main() {
 	let input = Box::new(TxtInput::new());
 	let mut runner = Interpreter::new(vm, input);
 
+	runner.setup();
 	runner.run();
 }
