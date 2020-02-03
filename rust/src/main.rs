@@ -3,23 +3,16 @@ use std::io::stdin;
 use std::io::stdout;
 use std::io::Write;
 
-union Callback {
-	vm: fn(&mut VM),
-	interpreter: fn(&mut Interpreter),
-	null: isize,
-}
-
-union CallbackInst {
-	vm: *mut VM,
-	interpreter: *mut Interpreter,
-	null: isize,
+enum Callback {
+	VM(fn(&mut VM), *mut VM),
+	Interpreter(fn(&mut Interpreter), *mut Interpreter),
+	Null,
 }
 
 struct Function {
 	name: String,
 	code: Vec<i8>,
 	callback: Callback,
-	inst: CallbackInst,
 	immediate: bool,
 }
 
@@ -34,8 +27,10 @@ impl Function {
 	}
 
 	fn run(&self) {
-		unsafe {
-			(self.callback.vm)(&mut *self.inst.vm);
+		match self.callback {
+			Callback::VM(c, p) => unsafe { c(&mut *p) },
+			Callback::Interpreter(c, p) => unsafe { c(&mut *p) },
+			Callback::Null => {}
 		}
 	}
 }
@@ -67,17 +62,15 @@ impl FunctionTable {
 		let f = Function {
 			name: name,
 			code: vec![],
-			callback: Callback { null: 0 },
-			inst: CallbackInst { null: 0 },
+			callback: Callback::Null,
 			immediate: false,
 		};
 		self.items.push(f);
 		self.items.len() - 1
 	}
 
-	fn set_callback(&mut self, id: usize, call: Callback, inst: CallbackInst) {
+	fn set_callback(&mut self, id: usize, call: Callback) {
 		self.items[id].callback = call;
-		self.items[id].inst = inst;
 	}
 }
 
@@ -269,23 +262,15 @@ impl VM {
 		println!("]");
 	}
 
-	fn add_callback_any(
-		&mut self,
-		name: String,
-		callback: Callback,
-		inst: CallbackInst,
-	) -> usize {
+	fn add_callback_any(&mut self, name: String, callback: Callback) -> usize {
 		let id = self.add_func(name);
-		self.ftable.set_callback(id, callback, inst);
+		self.ftable.set_callback(id, callback);
 		id
 	}
 
 	fn add_callback_vm(&mut self, name: String, ptr: fn(&mut VM)) -> usize {
-		let callback = Callback { vm: ptr };
-		let inst = CallbackInst {
-			vm: self as *mut VM,
-		};
-		self.add_callback_any(name, callback, inst)
+		let callback = Callback::VM(ptr, self as *mut VM);
+		self.add_callback_any(name, callback)
 	}
 
 	fn setup_functions(&mut self) {
@@ -485,35 +470,18 @@ impl Interpreter {
 
 		intptr.vm.setup_functions();
 
-		let id = intptr.vm.add_func(" ".to_string());
+		let mut id = intptr.vm.add_func(" ".to_string());
 		let ptr = intptr.vm.ftable.get(id).unwrap();
 		ptr.push_int(OpCode::Prompt as i8);
 		ptr.push_opcode(OpCode::Jump as i8, -2);
-
 		intptr.vm.fc = id;
 
-		let inst = CallbackInst {
-			interpreter: &mut intptr,
-		};
-		intptr.vm.add_callback_any(
-			":".to_string(),
-			Callback {
-				interpreter: Interpreter::define_func,
-			},
-			inst,
-		);
+		let mut cb = Callback::Interpreter(Interpreter::define_func, &mut intptr);
+		intptr.vm.add_callback_any(":".to_string(), cb);
 
-		let inst2 = CallbackInst {
-			interpreter: &mut intptr,
-		};
-		let id2 = intptr.vm.add_callback_any(
-			";".to_string(),
-			Callback {
-				interpreter: Interpreter::end_define_func,
-			},
-			inst2,
-		);
-		intptr.vm.ftable.get(id2).unwrap().immediate = true;
+		cb = Callback::Interpreter(Interpreter::end_define_func, &mut intptr);
+		id = intptr.vm.add_callback_any(";".to_string(), cb);
+		intptr.vm.ftable.get(id).unwrap().immediate = true;
 
 		intptr
 	}
