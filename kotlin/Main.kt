@@ -16,13 +16,13 @@ internal class Function(name: String) {
     var callback: (()->Unit)? = null
     var immediate = false
 
-    fun pushInt(`val`: Int) {
-        code.add(`val`)
+    fun pushInt(value: Int) {
+        code.add(value)
     }
 
-    fun pushOpcode(opcode: Int, `val`: Int) {
+    fun pushOpcode(opcode: Int, value: Int) {
         code.add(opcode)
-        code.add(`val`)
+        code.add(value)
     }
 
     fun run() {
