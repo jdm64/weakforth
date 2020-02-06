@@ -177,7 +177,8 @@ class VM
 
 	void jump()
 	{
-		pc += nextInt() - 1;
+		var n = nextInt() - 1;
+		pc += n;
 	}
 
 	void pushNum()
